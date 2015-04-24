@@ -2,18 +2,18 @@
 package main
 
 import (
-	"net/http"
-	"fmt"
-	"strings"
-	"io/ioutil"
-	"regexp"
-	"net/url"
-	"sync"
-	"runtime"
 	"flag"
-	"os"
+	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
+	"net/url"
+	"os"
+	"regexp"
+	"runtime"
 	"strconv"
+	"strings"
+	"sync"
 )
 
 var (
@@ -23,7 +23,6 @@ var (
 
 const (
 	maxCollectedWords = 8192
-	defaultCrawlDepth = 1
 
 	version_string = "getver 0.1"
 )
@@ -157,7 +156,7 @@ func crawl(target string, ignoreSubdomain bool, depth int, wg *sync.WaitGroup, e
 
 // Crawl an URL up to a given depth. Runs the examine function on every page.
 // Does not examine the same URL twice. Uses several goroutines.
-func CrawlDomain(url string, depth int, examineFunc func (string, string, int)) {
+func CrawlDomain(url string, depth int, examineFunc func(string, string, int)) {
 	examinedMutex = new(sync.Mutex)
 	examinedLinks = []string{}
 
@@ -182,17 +181,18 @@ func ToDepth(adr string) int {
 
 // Find a list of likely version numbers, given an URL and a maximum number of results
 // TODO: This function needs quite a bit of refactoring
-func VersionNumbers(url string, maxResults int) []string {
+func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 	// Mutex for storing words while crawling with several gorutines
 	wordMut := new(sync.Mutex)
 
-	// A map of found words. The key is the word, the value is depth:index.
-	// Depth is the crawl depth, index is the word index on a page.
-	wordMap := make(map[string]string)
+	// Maps from a word to a crawl depth (smaller is further away)
+	wordMapDepth := make(map[string]int)
+	// Maps from a word to a word index on a page
+	wordMapIndex := make(map[string]int)
 
 	// Find the words
 	wordIndex := 0
-	CrawlDomain(url, defaultCrawlDepth, func (target, data string, currentDepth int) {
+	CrawlDomain(url, crawlDepth, func(target, data string, currentDepth int) {
 		//fmt.Println("Finding digits for", target)
 		allowed := "0123456789.-+_abcdefghijklmnopqrstuvwxyz"
 		word := ""
@@ -260,7 +260,7 @@ func VersionNumbers(url string, maxResults int) []string {
 				// Check if the word has two special characters in a row
 				if ok {
 					for _, special := range ".-+_" {
-						if strings.Contains(word, string(special) + string(special)) {
+						if strings.Contains(word, string(special)+string(special)) {
 							// Not a version number
 							ok = false
 							break
@@ -384,21 +384,22 @@ func VersionNumbers(url string, maxResults int) []string {
 				if ok {
 					wordMut.Lock()
 					// Check if the word already exists
-					if adr, ok := wordMap[word]; ok {
-						oldDepth := ToDepth(adr)
+					if oldDepth, ok := wordMapDepth[word]; ok {
 						// Store the smallest depth
 						if currentDepth < oldDepth {
 							// Save the current crawl depth (smaller is further away) together with the wordIndex
-							wordMap[word] = strconv.Itoa(currentDepth) + ":" + strconv.Itoa(wordIndex)
+							wordMapDepth[word] = currentDepth
+							wordMapIndex[word] = wordIndex
 						}
 					} else {
 						// Save the current crawl depth (smaller is further away) together with the wordIndex
-						wordMap[word] = strconv.Itoa(currentDepth) + ":" + strconv.Itoa(wordIndex)
+						wordMapDepth[word] = currentDepth
+						wordMapIndex[word] = wordIndex
 					}
 					wordIndex++
 					wordMut.Unlock()
 					// If we have enough words, just return
-					if len(wordMap) > maxCollectedWords {
+					if len(wordMapDepth) > maxCollectedWords {
 						return
 					}
 				}
@@ -413,23 +414,34 @@ func VersionNumbers(url string, maxResults int) []string {
 	// Find the maximum number of dots
 	maxdots := 0
 	count := 0
-	for word, _ := range wordMap {
+	for word, _ := range wordMapDepth {
 		count = strings.Count(word, ".")
 		if count > maxdots {
 			maxdots = count
 		}
 	}
 
-	// The maximum depth
-	maxdepth := defaultCrawlDepth
+	// Find the maximum word index
+	maxindex := 0
+	for _, index := range wordMapIndex {
+		if index > maxindex {
+			maxindex = index
+		}
+	}
 
-	// Sort by the longest depth (earlier in the recursion) and then the number of dots
+	// The maximum depth
+	maxdepth := crawlDepth
+
+	// Sort by the longest depth (earlier in the recursion) and then the number of dots, and then the word index
 	var sortedWords []string
 	for d := maxdepth; d >= 0; d-- {
 		for i := maxdots; i >= 0; i-- {
-			for word, adr := range wordMap {
-				if (strings.Count(word, ".") == i) && (ToDepth(adr) == d) {
-					sortedWords = append(sortedWords, word)
+			for i2 := maxindex; i2 >= 0; i2-- {
+				for word, depth := range wordMapDepth {
+					index := wordMapIndex[word]
+					if (strings.Count(word, ".") == i) && (depth == d) && (index == i2) {
+						sortedWords = append(sortedWords, word)
+					}
 				}
 			}
 		}
@@ -444,7 +456,7 @@ func VersionNumbers(url string, maxResults int) []string {
 
 func main() {
 	// Use all cores
-    runtime.GOMAXPROCS(runtime.NumCPU())
+	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// Help text
 	flag.Usage = func() {
@@ -466,6 +478,7 @@ func main() {
 	// Commandline flags
 	version := flag.Bool("version", false, "Show application name and version")
 	results := flag.Int("n", 10, "The number of desired results")
+	crawlDepth := flag.Int("d", 1, "Crawl depth")
 
 	flag.Parse()
 
@@ -481,11 +494,11 @@ func main() {
 
 	url := flag.Args()[0]
 	if !strings.Contains(url, "://") {
-	    url = "http://" + url
-    }
+		url = "http://" + url
+	}
 
 	// Retrieve and output the results
-	for _, vnum := range VersionNumbers(url, *results) {
-	    fmt.Println(vnum)
-    }
+	for _, vnum := range VersionNumbers(url, *results, *crawlDepth) {
+		fmt.Println(vnum)
+	}
 }
