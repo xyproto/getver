@@ -11,7 +11,6 @@ import (
 	"os"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 )
@@ -62,9 +61,31 @@ func get(target string) string {
 }
 
 // Extract URLs from text
+// Relative links are returned as starting with "/"
 func getLinks(data string) []string {
-	re := regexp.MustCompile(`(http|ftp|https):\/\/([\w\-_]+(?:(?:\.[\w\-_]+)+))([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?`)
-	return re.FindAllString(data, -1)
+	// Find some links
+	re1 := regexp.MustCompile(`(http|ftp|https):\/\/([\w\-_]+(?:(?:\.[\w\-_]+)+))([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?`)
+	foundLinks := re1.FindAllString(data, -1)
+	// Find relative links too
+	var quote string
+	for _, line := range strings.Split(data, "href=") {
+		if len(line) < 1 {
+			continue
+		}
+		quote = string(line[0])
+		fields := strings.Split(line, quote)
+		if len(fields) > 1 {
+			relative := fields[1]
+			if !strings.Contains(relative, "://") {
+				if strings.HasPrefix(relative, "/") {
+					foundLinks = append(foundLinks, relative)
+				} else {
+					foundLinks = append(foundLinks, "/"+relative)
+				}
+			}
+		}
+	}
+	return foundLinks
 }
 
 // Extract likely subpages
@@ -75,6 +96,7 @@ func getSubPages(data string) []string {
 			subpages = append(subpages, link)
 		}
 	}
+	fmt.Println(subpages)
 	return subpages
 }
 
@@ -165,18 +187,6 @@ func CrawlDomain(url string, depth int, examineFunc func(string, string, int)) {
 	go crawl(url, true, depth, &wg, examineFunc)
 	// Wait for all the goroutines to complete
 	wg.Wait()
-}
-
-// Converts a depth:index adr to the depth.
-// Returns -1 in the unlikely event that the number can not be converted to a string.
-func ToDepth(adr string) int {
-	fields := strings.Split(adr, ":")
-	// Ignoring the error because the string will always be convertable
-	oldDepth, err := strconv.Atoi(fields[0])
-	if err != nil {
-		return -1
-	}
-	return oldDepth
 }
 
 // Find a list of likely version numbers, given an URL and a maximum number of results
@@ -296,6 +306,35 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 						ok = false
 					}
 				}
+				// If the word is one dash with one or two digits on either side, assume it's a date
+				if ok && (strings.Count(word, "-") == 1) {
+					parts := strings.Split(word, "-")
+					left, right := parts[0], parts[1]
+					if (len(left) <= 2) && (len(right) <= 2) {
+						onlyDigits := true
+						for _, letter := range left {
+							if !strings.Contains("0123456789", string(letter)) {
+								// Not a digit
+								onlyDigits = false
+								break
+							}
+						}
+						if onlyDigits {
+							for _, letter := range right {
+								if !strings.Contains("0123456789", string(letter)) {
+									// Not a digit
+									onlyDigits = false
+									break
+								}
+							}
+						}
+						if onlyDigits {
+							// Most likely a date
+							ok = false
+						}
+					}
+				}
+
 				// If there are only letters in front of the first dot, skip it
 				if ok && strings.Contains(word, ".") {
 					parts := strings.Split(word, ".")
@@ -434,9 +473,9 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 
 	// Sort by the longest depth (earlier in the recursion) and then the number of dots, and then the word index
 	var sortedWords []string
-	for d := maxdepth; d >= 0; d-- {
-		for i := maxdots; i >= 0; i-- {
-			for i2 := maxindex; i2 >= 0; i2-- {
+	for d := maxdepth; d >= 0; d-- { // Sort by crawl depth, highest number first (most shallow)
+		for i := maxdots; i >= 0; i-- { // Sort by number of "." in the version number
+			for i2 := 0; i2 < maxindex; i2++ { // Sort by placement on the page
 				for word, depth := range wordMapDepth {
 					index := wordMapIndex[word]
 					if (strings.Count(word, ".") == i) && (depth == d) && (index == i2) {
