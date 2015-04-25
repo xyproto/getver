@@ -26,7 +26,7 @@ var (
 
 const (
 	maxCollectedWords = 2048
-	version_string    = "getver 0.2"
+	version_string    = "getver 0.1"
 
 	allowed        = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	lookInsideTags = false
