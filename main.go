@@ -2,28 +2,34 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
 	examinedLinks []string
 	examinedMutex *sync.Mutex
+
+	clientTimeout time.Duration
 )
 
 const (
-	maxCollectedWords = 8192
+	maxCollectedWords = 2048
+	version_string    = "getver 0.2"
 
-	version_string = "getver 0.1"
+	allowed        = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	lookInsideTags = false
 )
 
 func linkIsPage(url string) bool {
@@ -48,14 +54,17 @@ func linkIsPage(url string) bool {
 
 func get(target string) string {
 	var client http.Client
+	client.Timeout = clientTimeout
 	resp, err := client.Get(target)
 	if err != nil {
-		log.Fatalln("Could not fetch " + target)
+		//log.Println("Could not fetch: " + target)
+		return ""
 	}
 	defer resp.Body.Close()
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalln("Could not dump body")
+		//log.Println("Could not dump body for: " + target)
+		return ""
 	}
 	return string(b)
 }
@@ -63,10 +72,9 @@ func get(target string) string {
 // Extract URLs from text
 // Relative links are returned as starting with "/"
 func getLinks(data string) []string {
-	// Find some links
-	re1 := regexp.MustCompile(`(http|ftp|https):\/\/([\w\-_]+(?:(?:\.[\w\-_]+)+))([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?`)
-	foundLinks := re1.FindAllString(data, -1)
-	// Find relative links too
+	var foundLinks []string
+
+	// Add relative links first
 	var quote string
 	for _, line := range strings.Split(data, "href=") {
 		if len(line) < 1 {
@@ -76,8 +84,10 @@ func getLinks(data string) []string {
 		fields := strings.Split(line, quote)
 		if len(fields) > 1 {
 			relative := fields[1]
-			if !strings.Contains(relative, "://") {
-				if strings.HasPrefix(relative, "/") {
+			if !strings.Contains(relative, "://") && !strings.Contains(relative, " ") {
+				if strings.HasPrefix(relative, "//") {
+					foundLinks = append(foundLinks, "http:"+relative)
+				} else if strings.HasPrefix(relative, "/") {
 					foundLinks = append(foundLinks, relative)
 				} else {
 					foundLinks = append(foundLinks, "/"+relative)
@@ -85,6 +95,13 @@ func getLinks(data string) []string {
 			}
 		}
 	}
+
+	// Then add the other links
+	re1 := regexp.MustCompile(`(http|ftp|https):\/\/([\w\-_]+(?:(?:\.[\w\-_]+)+))([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?`)
+	for _, link := range re1.FindAllString(data, -1) {
+		foundLinks = append(foundLinks, link)
+	}
+
 	return foundLinks
 }
 
@@ -96,7 +113,6 @@ func getSubPages(data string) []string {
 			subpages = append(subpages, link)
 		}
 	}
-	fmt.Println(subpages)
 	return subpages
 }
 
@@ -123,6 +139,12 @@ func sameDomain(links []string, host string, ignoreSubdomain bool) []string {
 		}
 		if ToDomain(u.Host, ignoreSubdomain) == ToDomain(host, ignoreSubdomain) {
 			result = append(result, link)
+		}
+		// Handle links starting with // or just /
+		if strings.HasPrefix(link, "//") {
+			result = append(result, "http:"+link)
+		} else if strings.HasPrefix(link, "/") {
+			result = append(result, "http://"+host+link)
 		}
 	}
 	return result
@@ -199,22 +221,23 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 	wordMapDepth := make(map[string]int)
 	// Maps from a word to a word index on a page
 	wordMapIndex := make(map[string]int)
+	// Maps from a word to a char position  on a page
+	wordMapCharIndex := make(map[string]int)
 
 	// Find the words
-	wordIndex := 0
 	CrawlDomain(url, crawlDepth, func(target, data string, currentDepth int) {
+		wordIndex := 0
 		//fmt.Println("Finding digits for", target)
-		allowed := "0123456789.-+_abcdefghijklmnopqrstuvwxyz"
 		word := ""
 		intag := false
-		for _, x := range data {
+		for charIndex, x := range data {
 			if !intag && (x == '<') {
 				intag = true
 			} else if intag && (x == '>') {
 				intag = false
-			} else if !intag && strings.Contains(allowed, string(x)) {
+			} else if (!intag || lookInsideTags) && strings.Contains(allowed, string(x)) {
 				word += string(x)
-			} else if !intag && !strings.Contains(allowed, string(x)) {
+			} else if (!intag || lookInsideTags) && !strings.Contains(allowed, string(x)) {
 				ok := true
 				// Check if the word is empty
 				if word == "" {
@@ -228,6 +251,26 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 				// it's unlikely to be a version number
 				if ok && (len(word) > 16) {
 					ok = false
+				}
+				// If there is more than one capital letter, skip it
+				if ok {
+					capCount := 0
+					// Count up to 2 capital letters
+					for _, letter := range word {
+						if strings.Contains("ABCDEFGHIJKLMNOPQRSTUVWXYZ", string(letter)) {
+							capCount++
+							if capCount > 1 {
+								break
+							}
+						}
+					}
+					if capCount > 1 {
+						ok = false
+					}
+					// If there is a captial letter and no dot, skip it
+					if ok && (capCount == 1) && !strings.Contains(word, ".") {
+						ok = false
+					}
 				}
 				// If the word ends with a dot, remove it
 				if ok && strings.HasSuffix(word, ".") {
@@ -415,25 +458,36 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 						ok = false
 					}
 				}
-				// Some words are known not to be version numbers
-				if ok && has([]string{"i686", "x86_64"}, word) {
-					ok = false
+				// Some words are usually not part of version numbers (but perhaps filenames)
+				if ok {
+					for _, unrelatedWord := range []string{"i686", "x86", "x64", "64bit", "32bit", "md5", "sha1"} {
+						if strings.Contains(word, unrelatedWord) {
+							ok = false
+							break
+						}
+					}
 				}
-				// The word might be a version number, add it to the list
+
+				// TODO: If there is one word in the version number and that word in lowercase
+				//       is part of the domain, remove it from the version number
+
+				// the word might be a version number, add it to the list
 				if ok {
 					wordMut.Lock()
-					// Check if the word already exists
+					// check if the word already exists
 					if oldDepth, ok := wordMapDepth[word]; ok {
-						// Store the smallest depth
+						// store the smallest depth
 						if currentDepth < oldDepth {
-							// Save the current crawl depth (smaller is further away) together with the wordIndex
+							// save the current crawl depth (smaller is further away) together with the wordindex
 							wordMapDepth[word] = currentDepth
 							wordMapIndex[word] = wordIndex
+							wordMapCharIndex[word] = charIndex
 						}
 					} else {
 						// Save the current crawl depth (smaller is further away) together with the wordIndex
 						wordMapDepth[word] = currentDepth
 						wordMapIndex[word] = wordIndex
+						wordMapCharIndex[word] = charIndex
 					}
 					wordIndex++
 					wordMut.Unlock()
@@ -471,25 +525,35 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 	// The maximum depth
 	maxdepth := crawlDepth
 
-	// Sort by the longest depth (earlier in the recursion) and then the number of dots, and then the word index
+	// Find all char indices
+	var charIndexList []int
+	for _, charIndex := range wordMapCharIndex {
+		charIndexList = append(charIndexList, charIndex)
+	}
+
+	// Sort by the number of dots ("."), shortest depth (largest depth number), placement on the page and then by the first leter
 	var sortedWords []string
-	for d := maxdepth; d >= 0; d-- { // Sort by crawl depth, highest number first (most shallow)
-		for i := maxdots; i >= 0; i-- { // Sort by number of "." in the version number
-			for i2 := 0; i2 < maxindex; i2++ { // Sort by placement on the page
-				for word, depth := range wordMapDepth {
-					index := wordMapIndex[word]
-					if (strings.Count(word, ".") == i) && (depth == d) && (index == i2) {
-						sortedWords = append(sortedWords, word)
+	resultCounter := 0
+OUT:
+	for i := maxdots; i >= 0; i-- { // Sort by number of "." in the version number
+		for i2 := 0; i2 < maxindex; i2++ { // Sort by placement on the page
+			for d := maxdepth; d >= 0; d-- { // Sort by crawl depth, highest number first (most shallow)
+				for _, charIndex := range charIndexList { // Sort by character index as well
+					for word, depth := range wordMapDepth {
+						if (strings.Count(word, ".") == i) && (depth == d) && (wordMapIndex[word] == i2) && (wordMapCharIndex[word] == charIndex) {
+							//fmt.Println("PR", word, d, i2, wordMapCharIndex[word])
+							sortedWords = append(sortedWords, word)
+							resultCounter++
+							if resultCounter == maxResults {
+								break OUT
+							}
+						}
 					}
 				}
 			}
 		}
 	}
 
-	// Return the results
-	if len(sortedWords) > maxResults {
-		return sortedWords[:maxResults]
-	}
 	return sortedWords
 }
 
@@ -507,27 +571,47 @@ func main() {
 		fmt.Println("Syntax: getver [flags] URL")
 		fmt.Println()
 		fmt.Println("Possible flags:")
-		fmt.Println("    --version    Show application name and version")
-		fmt.Println("    -n=N         Maximum number of results (the default is 10)")
+		fmt.Println("    -u=N         Use a specific result")
+		fmt.Println("    -n=N         Retreive more results (the default is 1)")
 		fmt.Println("    -d=N         Crawl depth (the default is 1)")
+		fmt.Println("    -t=N         Timeout per request, in milliseconds (the default is 10000)")
+		fmt.Println("    --sort       Sort the results in descending order")
+		fmt.Println("    --number     Number the results")
+		fmt.Println("    --version    Application name and version")
 		fmt.Println("    --help       This text")
 		fmt.Println()
 	}
 
 	// Commandline flags
-	version := flag.Bool("version", false, "Show application name and version")
-	results := flag.Int("n", 10, "The number of desired results")
+	retrieve := flag.Int("n", 1, "Retrieve more results (default is 1)")
+	selection := flag.Int("u", -1, "Use a specific result")
 	crawlDepth := flag.Int("d", 1, "Crawl depth")
+	timeout := flag.Int("t", 10000, "Timeout per request, in milliseconds")
+	sortResults := flag.Bool("sort", false, "Sort the results in descending order")
+	numbered := flag.Bool("number", false, "Number the results")
+	version := flag.Bool("version", false, "Show application name and version")
 
 	flag.Parse()
+
+	// If a specific result is wanted, make sure to retrieve just enough results
+	// This also makes x=0 work, even though 1 is the minimum specified index for x.
+	if *selection != -1 {
+		*retrieve = *selection + 1
+	}
 
 	if *version {
 		fmt.Println(version_string)
 		os.Exit(0)
 	}
 
+	if *crawlDepth > 3 {
+		fmt.Println("Maximum crawl depth is 3.")
+		os.Exit(1)
+	}
+
 	if len(flag.Args()) == 0 {
-		fmt.Println("Please provide an URL. For example: http://www.rust-lang.org/")
+		fmt.Println("Needs an URL as the first argument.")
+		fmt.Println("Example: getver golang.org")
 		os.Exit(1)
 	}
 
@@ -536,8 +620,35 @@ func main() {
 		url = "http://" + url
 	}
 
+	clientTimeout = time.Duration(*timeout) * time.Millisecond
+
 	// Retrieve and output the results
-	for _, vnum := range VersionNumbers(url, *results, *crawlDepth) {
-		fmt.Println(vnum)
+	foundVersionNumbers := VersionNumbers(url, *retrieve, *crawlDepth)
+	if *sortResults {
+		sort.Strings(foundVersionNumbers)
+		var reversed []string
+		maxnum := len(foundVersionNumbers) - 1
+		for i := 0; i <= maxnum; i++ {
+			reversed = append(reversed, foundVersionNumbers[maxnum-i])
+		}
+		foundVersionNumbers = reversed
+	}
+	if (*selection > 0) && (*selection <= len(foundVersionNumbers)) {
+		fmt.Println(foundVersionNumbers[*selection-1])
+	} else if *selection >= len(foundVersionNumbers) {
+		fmt.Printf("Not enough results to retrieve result number %d.\n", *selection)
+		os.Exit(1)
+	} else if *numbered {
+		var buf bytes.Buffer
+		for i, word := range foundVersionNumbers {
+			buf.WriteString(fmt.Sprintf("%d: %s\n", i+1, word))
+		}
+		fmt.Print(buf.String())
+	} else {
+		var buf bytes.Buffer
+		for _, word := range foundVersionNumbers {
+			buf.WriteString(word + "\n")
+		}
+		fmt.Print(buf.String())
 	}
 }
