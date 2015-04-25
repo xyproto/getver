@@ -17,19 +17,23 @@ import (
 	"time"
 )
 
+const (
+	maxCollectedWords = 2048
+	version_string    = "getver 0.2"
+
+	ALLOWED        = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	DIGITS         = "0123456789"
+	LETTERS        = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	SPECIAL        = ".-+_"
+	lookInsideTags = false
+)
+
 var (
 	examinedLinks []string
 	examinedMutex *sync.Mutex
 
-	clientTimeout time.Duration
-)
-
-const (
-	maxCollectedWords = 2048
-	version_string    = "getver 0.1"
-
-	allowed        = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	lookInsideTags = false
+	clientTimeout  time.Duration
+	noStripLetters = false
 )
 
 func linkIsPage(url string) bool {
@@ -235,9 +239,9 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 				intag = true
 			} else if intag && (x == '>') {
 				intag = false
-			} else if (!intag || lookInsideTags) && strings.Contains(allowed, string(x)) {
+			} else if (!intag || lookInsideTags) && strings.Contains(ALLOWED, string(x)) {
 				word += string(x)
-			} else if (!intag || lookInsideTags) && !strings.Contains(allowed, string(x)) {
+			} else if (!intag || lookInsideTags) && !strings.Contains(ALLOWED, string(x)) {
 				ok := true
 				// Check if the word is empty
 				if word == "" {
@@ -349,6 +353,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 						ok = false
 					}
 				}
+
 				// If the word is one dash with one or two digits on either side, assume it's a date
 				if ok && (strings.Count(word, "-") == 1) {
 					parts := strings.Split(word, "-")
@@ -378,12 +383,28 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 					}
 				}
 
+				// Strip away letters. If needed, strip away special characters
+				// at the beginning or end too. Don't strip "alpha" and "beta".
+				if ok && !noStripLetters && !(strings.Contains(word, "alpha") || strings.Contains(word, "beta")) {
+					newWord := ""
+					for _, letter := range word {
+						if strings.Contains(DIGITS+SPECIAL, string(letter)) {
+							newWord += string(letter)
+						}
+					}
+					// If the new word starts with a ".", strip it
+					if strings.HasPrefix(newWord, ".") {
+						newWord = newWord[1:]
+					}
+					word = newWord
+				}
+
 				// If there are only letters in front of the first dot, skip it
 				if ok && strings.Contains(word, ".") {
 					parts := strings.Split(word, ".")
 					foundNonLetter := false
 					for _, letter := range parts[0] {
-						if !strings.Contains("abcdefghijklmnopqrstuvwxyz", string(letter)) {
+						if !strings.Contains(LETTERS, string(letter)) {
 							foundNonLetter = true
 						}
 					}
@@ -392,12 +413,13 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 						ok = false
 					}
 				}
+
 				// More than three digits in a row is not likely to be a version number
 				if ok {
 					streakCount := 0
 					maxStreak := 0
 					for _, letter := range word {
-						if strings.Contains("0123456789", string(letter)) {
+						if strings.Contains(DIGITS, string(letter)) {
 							streakCount++
 						} else {
 							// Set maxStreak and reset the streakCount
@@ -432,7 +454,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 					// Find the first digit
 					pos := -1
 					for i, letter := range word {
-						if strings.Contains("0123456789", string(letter)) {
+						if strings.Contains(DIGITS, string(letter)) {
 							pos = i
 							break
 						}
@@ -440,7 +462,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 					if pos > 0 {
 						// Check if the preceeding letter contains no special letters
 						preceeding := word[:pos]
-						if (len(preceeding) == 1) && !strings.Contains("abcdefghijklmnopqrstuvwxyz", string(preceeding[0])) {
+						if (len(preceeding) == 1) && !strings.Contains(LETTERS, string(preceeding[0])) {
 							ok = false
 						}
 					}
@@ -467,10 +489,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 						}
 					}
 				}
-
-				// TODO: If there is one word in the version number and that word in lowercase
-				//       is part of the domain, remove it from the version number
-
+				
 				// the word might be a version number, add it to the list
 				if ok {
 					wordMut.Lock()
@@ -497,7 +516,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 					}
 				}
 				word = ""
-				if strings.Contains(allowed, string(x)) {
+				if strings.Contains(ALLOWED, string(x)) {
 					word = string(x)
 				}
 			}
@@ -575,6 +594,7 @@ func main() {
 		fmt.Println("    -n=N         Retreive more results (the default is 1)")
 		fmt.Println("    -d=N         Crawl depth (the default is 1)")
 		fmt.Println("    -t=N         Timeout per request, in milliseconds (the default is 10000)")
+		fmt.Println("    --nostrip    Don't strip away letters")
 		fmt.Println("    --sort       Sort the results in descending order")
 		fmt.Println("    --number     Number the results")
 		fmt.Println("    --version    Application name and version")
@@ -588,6 +608,7 @@ func main() {
 	crawlDepth := flag.Int("d", 1, "Crawl depth")
 	timeout := flag.Int("t", 10000, "Timeout per request, in milliseconds")
 	sortResults := flag.Bool("sort", false, "Sort the results in descending order")
+	nostripped := flag.Bool("nostrip", false, "Strip away letters, keep digits")
 	numbered := flag.Bool("number", false, "Number the results")
 	version := flag.Bool("version", false, "Show application name and version")
 
@@ -621,6 +642,7 @@ func main() {
 	}
 
 	clientTimeout = time.Duration(*timeout) * time.Millisecond
+	noStripLetters = *nostripped
 
 	// Retrieve and output the results
 	foundVersionNumbers := VersionNumbers(url, *retrieve, *crawlDepth)

@@ -8,6 +8,6 @@ echo -n 'Python 3: '
 echo -n 'Rust: '
 ./getver rust-lang.org
 echo -n 'Grails: '
-./getver -d 2 --sort -u 1 grails.org
+./getver -u 1 -d 2 --sort grails.org
 echo -n 'Groovy: '
-./getver groovy-lang.org
+./getver -u 2 -d 2 groovy-lang.org
