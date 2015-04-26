@@ -19,12 +19,14 @@ import (
 
 const (
 	maxCollectedWords = 2048
-	version_string    = "getver 0.2"
+	version_string    = "getver 0.3"
 
-	ALLOWED        = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	DIGITS         = "0123456789"
-	LETTERS        = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	SPECIAL        = ".-+_"
+	ALLOWED = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	UPPER   = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	DIGITS  = "0123456789"
+	SPECIAL = ".-+_"
+
 	lookInsideTags = false
 )
 
@@ -34,18 +36,20 @@ var (
 
 	clientTimeout  time.Duration
 	noStripLetters = false
+
+	defaultProtocol = "http" // If the protocol is missing
 )
 
 func linkIsPage(url string) bool {
 	// If the link ends with an extension, make sure it's .html
-	if strings.HasSuffix(url, ".html") {
+	if strings.HasSuffix(url, ".html") || strings.HasSuffix(url, ".htm") {
 		return true
 	}
 	// If there is a question mark in the url, don't bother
 	if strings.Contains(url, "?") {
 		return false
 	}
-	// If the last part has no ".", it's ok
+	// If the last part has no ".", it's assumed to be a page
 	if strings.Contains(url, "/") {
 		pos := strings.LastIndex(url, "/")
 		if !strings.Contains(url[pos:], ".") {
@@ -56,18 +60,17 @@ func linkIsPage(url string) bool {
 	return false
 }
 
+// For a given URL, return the contents or an empty string.
 func get(target string) string {
 	var client http.Client
 	client.Timeout = clientTimeout
 	resp, err := client.Get(target)
 	if err != nil {
-		//log.Println("Could not fetch: " + target)
 		return ""
 	}
 	defer resp.Body.Close()
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		//log.Println("Could not dump body for: " + target)
 		return ""
 	}
 	return string(b)
@@ -90,7 +93,7 @@ func getLinks(data string) []string {
 			relative := fields[1]
 			if !strings.Contains(relative, "://") && !strings.Contains(relative, " ") {
 				if strings.HasPrefix(relative, "//") {
-					foundLinks = append(foundLinks, "http:"+relative)
+					foundLinks = append(foundLinks, defaultProtocol+":"+relative)
 				} else if strings.HasPrefix(relative, "/") {
 					foundLinks = append(foundLinks, relative)
 				} else {
@@ -100,7 +103,7 @@ func getLinks(data string) []string {
 		}
 	}
 
-	// Then add the other links
+	// Then add the absolute links
 	re1 := regexp.MustCompile(`(http|ftp|https):\/\/([\w\-_]+(?:(?:\.[\w\-_]+)+))([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?`)
 	for _, link := range re1.FindAllString(data, -1) {
 		foundLinks = append(foundLinks, link)
@@ -139,16 +142,17 @@ func sameDomain(links []string, host string, ignoreSubdomain bool) []string {
 	for _, link := range links {
 		u, err := url.Parse(link)
 		if err != nil {
-			fmt.Println("Invalid url: " + link)
+			// Invalid URL
+			continue
 		}
 		if ToDomain(u.Host, ignoreSubdomain) == ToDomain(host, ignoreSubdomain) {
 			result = append(result, link)
 		}
 		// Handle links starting with // or just /
 		if strings.HasPrefix(link, "//") {
-			result = append(result, "http:"+link)
+			result = append(result, defaultProtocol+":"+link)
 		} else if strings.HasPrefix(link, "/") {
-			result = append(result, "http://"+host+link)
+			result = append(result, defaultProtocol+"://"+host+link)
 		}
 	}
 	return result
@@ -261,7 +265,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 					capCount := 0
 					// Count up to 2 capital letters
 					for _, letter := range word {
-						if strings.Contains("ABCDEFGHIJKLMNOPQRSTUVWXYZ", string(letter)) {
+						if strings.Contains(UPPER, string(letter)) {
 							capCount++
 							if capCount > 1 {
 								break
@@ -287,7 +291,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 				// Check if the word has at least one digit
 				if ok {
 					found := false
-					for _, digit := range "0123456789" {
+					for _, digit := range DIGITS {
 						if strings.Contains(word, string(digit)) {
 							found = true
 							break
@@ -316,7 +320,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 				}
 				// Check if the word has two special characters in a row
 				if ok {
-					for _, special := range ".-+_" {
+					for _, special := range SPECIAL {
 						if strings.Contains(word, string(special)+string(special)) {
 							// Not a version number
 							ok = false
@@ -327,7 +331,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 				// If the word is at least 4 letters long, check if it could be a filename
 				if ok && (len(word) >= 4) {
 					// If the last letter is not a digit
-					if !strings.Contains("0123456789", string(word[len(word)-1])) {
+					if !strings.Contains(DIGITS, string(word[len(word)-1])) {
 						// If the '.' leaves three or two letters at the end
 						if (word[len(word)-4] == '.') || (word[len(word)-3] == '.') {
 							// It's probably a filename
@@ -336,14 +340,14 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 					}
 				}
 				// If the word starts with a special character, skip it
-				if ok && strings.Contains(".-+_", string(word[0])) {
+				if ok && strings.Contains(SPECIAL, string(word[0])) {
 					ok = false
 				}
 				// If the word is digits and two dashes, assume it's a date
 				if ok && (strings.Count(word, "-") == 2) {
 					onlyDateLetters := true
 					for _, letter := range word {
-						if !strings.Contains("0123456789-", string(letter)) {
+						if !strings.Contains(DIGITS+"-", string(letter)) {
 							onlyDateLetters = false
 							break
 						}
@@ -361,7 +365,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 					if (len(left) <= 2) && (len(right) <= 2) {
 						onlyDigits := true
 						for _, letter := range left {
-							if !strings.Contains("0123456789", string(letter)) {
+							if !strings.Contains(DIGITS, string(letter)) {
 								// Not a digit
 								onlyDigits = false
 								break
@@ -369,7 +373,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 						}
 						if onlyDigits {
 							for _, letter := range right {
-								if !strings.Contains("0123456789", string(letter)) {
+								if !strings.Contains(DIGITS, string(letter)) {
 									// Not a digit
 									onlyDigits = false
 									break
@@ -439,7 +443,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 				// If the word has no special characters and starts with "0", it's not a version number
 				if ok {
 					hasSpecial := false
-					for _, special := range ".-+_" {
+					for _, special := range SPECIAL {
 						if strings.Contains(word, string(special)) {
 							hasSpecial = true
 							break
@@ -489,7 +493,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 						}
 					}
 				}
-				
+
 				// the word might be a version number, add it to the list
 				if ok {
 					wordMut.Lock()
@@ -523,19 +527,19 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 		}
 	})
 
-	// Find the maximum number of dots
+	// Find the maximum number of dots and maximum word index
 	maxdots := 0
 	count := 0
+	maxindex := 0
+	index := 0
 	for word, _ := range wordMapDepth {
+		// Find the maximum dotcount
 		count = strings.Count(word, ".")
 		if count > maxdots {
 			maxdots = count
 		}
-	}
-
-	// Find the maximum word index
-	maxindex := 0
-	for _, index := range wordMapIndex {
+		// Find the maximum index
+		index = wordMapIndex[word]
 		if index > maxindex {
 			maxindex = index
 		}
@@ -550,7 +554,8 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 		charIndexList = append(charIndexList, charIndex)
 	}
 
-	// Sort by the number of dots ("."), shortest depth (largest depth number), placement on the page and then by the first leter
+	// Sort the likely version numbers by a number of criteria
+
 	var sortedWords []string
 	resultCounter := 0
 OUT:
@@ -558,9 +563,8 @@ OUT:
 		for i2 := 0; i2 < maxindex; i2++ { // Sort by placement on the page
 			for d := maxdepth; d >= 0; d-- { // Sort by crawl depth, highest number first (most shallow)
 				for _, charIndex := range charIndexList { // Sort by character index as well
-					for word, depth := range wordMapDepth {
+					for word, depth := range wordMapDepth { // Loop through the gathered words
 						if (strings.Count(word, ".") == i) && (depth == d) && (wordMapIndex[word] == i2) && (wordMapCharIndex[word] == charIndex) {
-							//fmt.Println("PR", word, d, i2, wordMapCharIndex[word])
 							sortedWords = append(sortedWords, word)
 							resultCounter++
 							if resultCounter == maxResults {
@@ -637,14 +641,20 @@ func main() {
 	}
 
 	url := flag.Args()[0]
-	if !strings.Contains(url, "://") {
-		url = "http://" + url
+
+	// Set a default protocol (for crawling relative links)
+	if strings.HasPrefix(url, "https") {
+		defaultProtocol = "https"
+	} else if !strings.Contains(url, "://") {
+		// Add a default protocol if "*://" is mising
+		url = defaultProtocol + "://" + url
 	}
 
 	clientTimeout = time.Duration(*timeout) * time.Millisecond
 	noStripLetters = *nostripped
 
-	// Retrieve and output the results
+	// Retrieve the results
+
 	foundVersionNumbers := VersionNumbers(url, *retrieve, *crawlDepth)
 	if *sortResults {
 		sort.Strings(foundVersionNumbers)
@@ -655,6 +665,9 @@ func main() {
 		}
 		foundVersionNumbers = reversed
 	}
+
+	// Output the results
+
 	if (*selection > 0) && (*selection <= len(foundVersionNumbers)) {
 		fmt.Println(foundVersionNumbers[*selection-1])
 	} else if *selection >= len(foundVersionNumbers) {
@@ -665,12 +678,22 @@ func main() {
 		for i, word := range foundVersionNumbers {
 			buf.WriteString(fmt.Sprintf("%d: %s\n", i+1, word))
 		}
-		fmt.Print(buf.String())
+		if len(foundVersionNumbers) > 0 {
+			fmt.Print(buf.String())
+		} else {
+			// No results
+			os.Exit(1)
+		}
 	} else {
 		var buf bytes.Buffer
 		for _, word := range foundVersionNumbers {
 			buf.WriteString(word + "\n")
 		}
-		fmt.Print(buf.String())
+		if len(foundVersionNumbers) > 0 {
+			fmt.Print(buf.String())
+		} else {
+			// No results
+			os.Exit(1)
+		}
 	}
 }
