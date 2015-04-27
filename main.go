@@ -589,7 +589,7 @@ func main() {
 		fmt.Println()
 		fmt.Println(version_string)
 		fmt.Println()
-		fmt.Println("Crawls a given URL and tries to find the version numbers")
+		fmt.Println("Crawls a given URL and tries to find the version number.")
 		fmt.Println()
 		fmt.Println("Syntax: getver [flags] URL")
 		fmt.Println()
@@ -682,7 +682,7 @@ func main() {
 			fmt.Print(buf.String())
 		} else {
 			// No results
-			os.Exit(1)
+			os.Exit(2)
 		}
 	} else {
 		var buf bytes.Buffer
