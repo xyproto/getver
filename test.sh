@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 echo -n 'Go: '
 ./getver golang.org
 echo -n 'Python 2: '
@@ -8,6 +8,6 @@ echo -n 'Python 3: '
 echo -n 'Rust: '
 ./getver rust-lang.org
 echo -n 'Grails: '
-./getver -u 1 -d 2 --sort grails.org
+./getver -d 2 -u 1 --sort grails.org
 echo -n 'Groovy: '
-./getver -u 2 -d 2 groovy-lang.org
+./getver -d 2 -u 2 groovy-lang.org
