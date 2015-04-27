@@ -684,8 +684,8 @@ func main() {
 		if len(foundVersionNumbers) > 0 {
 			fmt.Print(buf.String())
 		} else {
-			// No results
-			os.Exit(2)
+			// No results, no errors, no output
+			os.Exit(0)
 		}
 	} else {
 		// Regular non-numbered output of the results
@@ -696,8 +696,8 @@ func main() {
 		if len(foundVersionNumbers) > 0 {
 			fmt.Print(buf.String())
 		} else {
-			// No results
-			os.Exit(2)
+			// No results, no errors, no output
+			os.Exit(0)
 		}
 	}
 }
