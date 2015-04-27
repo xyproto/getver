@@ -209,9 +209,11 @@ func crawl(target string, ignoreSubdomain bool, depth int, wg *sync.WaitGroup, e
 // Crawl an URL up to a given depth. Runs the examine function on every page.
 // Does not examine the same URL twice. Uses several goroutines.
 func CrawlDomain(url string, depth int, examineFunc func(string, string, int)) {
+	// Set up a mutex and slice to keep track of pages that has already been crawled
 	examinedMutex = new(sync.Mutex)
 	examinedLinks = []string{}
 
+	// Crawl the given URL to the desired depth, using goroutines and a WaitGroup
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go crawl(url, true, depth, &wg, examineFunc)
@@ -560,9 +562,9 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 	resultCounter := 0
 OUT:
 	for i := maxdots; i >= 0; i-- { // Sort by number of "." in the version number
-		for i2 := 0; i2 < maxindex; i2++ { // Sort by placement on the page
+		for i2 := 0; i2 < maxindex; i2++ { // Sort by word placement on the page
 			for d := maxdepth; d >= 0; d-- { // Sort by crawl depth, highest number first (most shallow)
-				for _, charIndex := range charIndexList { // Sort by character index as well
+				for _, charIndex := range charIndexList { // Sort by page character index as well
 					for word, depth := range wordMapDepth { // Loop through the gathered words
 						if (strings.Count(word, ".") == i) && (depth == d) && (wordMapIndex[word] == i2) && (wordMapCharIndex[word] == charIndex) {
 							sortedWords = append(sortedWords, word)
@@ -674,6 +676,7 @@ func main() {
 		fmt.Printf("Not enough results to retrieve result number %d.\n", *selection)
 		os.Exit(1)
 	} else if *numbered {
+		// Numbered output of the results
 		var buf bytes.Buffer
 		for i, word := range foundVersionNumbers {
 			buf.WriteString(fmt.Sprintf("%d: %s\n", i+1, word))
@@ -685,6 +688,7 @@ func main() {
 			os.Exit(2)
 		}
 	} else {
+		// Regular non-numbered output of the results
 		var buf bytes.Buffer
 		for _, word := range foundVersionNumbers {
 			buf.WriteString(word + "\n")
@@ -693,7 +697,7 @@ func main() {
 			fmt.Print(buf.String())
 		} else {
 			// No results
-			os.Exit(1)
+			os.Exit(2)
 		}
 	}
 }
