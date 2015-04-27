@@ -1,5 +1,11 @@
-# getver
+# getver [![Build Status](https://travis-ci.org/xyproto/getver.svg?branch=master)](https://travis-ci.org/xyproto/getver)
 
-Given an URL, get the current version for a project.
+Small utility for retrieving the current version of a project, for a given URL.
 
-Current version: 0.32
+General information
+-------------------
+
+* Current version: 0.32
+* Author: Alexander F Rødseth
+* License: MIT
+
