@@ -178,13 +178,13 @@ func crawlOnePage(target string, ignoreSubdomain bool, currentDepth int, examine
 	// Find all links pointing to the same domain or same subdomain
 	data := get(target)
 	// Don't examine the same target twice
+	examinedMutex.Lock()
 	if !has(examinedLinks, target) {
-		examineFunc(target, data, currentDepth)
 		// Update the list of examined urls in a mutex
-		examinedMutex.Lock()
+		examineFunc(target, data, currentDepth)
 		examinedLinks = append(examinedLinks, target)
-		examinedMutex.Unlock()
 	}
+	examinedMutex.Unlock()
 	// Return the links to follow next
 	return sameDomain(getSubPages(data), u.Host, ignoreSubdomain)
 }
