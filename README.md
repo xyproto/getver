@@ -2,4 +2,4 @@
 
 Given an URL, get the current version for a project.
 
-Current version: 0.3
+Current version: 0.32

@@ -1,0 +1,72 @@
+.\"             -*-Nroff-*-
+.\"
+.TH "getver" 1 "27 Apr 2015" "" ""
+.SH NAME
+getver \- crawls a given URL and tries to find the version number
+.SH SYNOPSIS
+.B getver URL to extract version information from
+.SH DESCRIPTION
+getver will crawl the given URL, to a specified depth and use various
+heuristics to extract the most likely version number.  .sp If no version number
+is found, error code 2 is returned. If something else should fail, error code 1
+is returned.  .sp For some projects, the first returned version number may not
+be what you want (python.org returns the latest version number for Python 3 and
+then the latest version number for Python 2, for example). If this is the case,
+use the -u flag together with a number that selects the desired match.
+.sp
+getver is multithreaded.
+.SH "EXAMPLES"
+.B getver
+Exits with error code 1 and an example for how to use the utility.
+.sp
+.B getver URL
+Tries to find the most likely version number from the given URL.
+.sp
+.B getver -u 1 python.org
+Returns the first result from python.org, which is the version number for
+Python 3.
+.sp
+.B getver -u 2 python.org
+Returns the second result from python.org, which is the version number for
+Python 2.
+.sp
+.B getver -d 2 -u 1 --sort grails.org
+Crawls grails.org with a depth of 2, sorts the results in descending order and
+returns the first result.  Sorting may be necessary when crawling with a
+depth > 1, to retrieve the version number from the same version number placement.
+.PP
+.SH OPTIONS
+.TP
+.B \-u use a specific result, indexed from 1
+.TP
+.B \-n retrieve more than one result (the default is 1). Use together with
+--number to number the results.
+.TP
+.B \-d crawl the given URL with the given depth (the default is 1)
+.TP
+.B \-t specify a timeout per request, in milliseconds (the default is 10000)
+When crawling with a depth > 1, a lower timeout value may yield results faster.
+.TP
+.B \-\-nostrip don't strip away letters from potential version numbers, but
+keep them as part of the result.
+.TP
+.B \-\-sort sort the results, indescending order. The default sort is usually
+more suitable, but not stable.  This sort is stable, but the result you want
+may appear much longer down on the list of results.
+.TP
+.B \-\-help displays brief usage information
+.TP
+.B \-\-version application name and version
+.TP
+.PP
+.SH "WHY"
+.sp
+Aims to make it easy to find out if a project has released a new version.
+.SH BUGS
+Only unknown bugs so far. Bugs can be reported at
+https://github.com/xyproto/getver/issues.
+.SH VERSION
+0.32
+.SH AUTHOR
+.B
+getver was written by Alexander F Rødseth <rodseth@gmail.com>

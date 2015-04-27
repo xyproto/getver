@@ -19,7 +19,7 @@ import (
 
 const (
 	maxCollectedWords = 2048
-	version_string    = "getver 0.3"
+	version_string    = "getver 0.32"
 
 	ALLOWED = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -602,7 +602,7 @@ func main() {
 		fmt.Println("    --sort       Sort the results in descending order")
 		fmt.Println("    --number     Number the results")
 		fmt.Println("    --version    Application name and version")
-		fmt.Println("    --help       This text")
+		fmt.Println("    --help       Brief usage information")
 		fmt.Println()
 	}
 
