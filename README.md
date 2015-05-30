@@ -5,7 +5,7 @@ Small utility for retrieving the current version of a project, for a given URL.
 General information
 -------------------
 
-* Current version: 0.32
+* Current version: 0.33
 * Author: Alexander F Rødseth
 * License: MIT
 

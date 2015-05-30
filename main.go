@@ -19,7 +19,7 @@ import (
 
 const (
 	maxCollectedWords = 2048
-	version_string    = "getver 0.32"
+	version_string    = "getver 0.33"
 
 	ALLOWED = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
