@@ -1,6 +1,6 @@
 .\"             -*-Nroff-*-
 .\"
-.TH "getver" 1 "27 Apr 2015" "" ""
+.TH "getver" 1 "30 Jun 2015" "" ""
 .SH NAME
 getver \- crawls a given URL and tries to find the version number
 .SH SYNOPSIS
@@ -44,6 +44,8 @@ depth > 1, to retrieve the version number from the same version number placement
 .TP
 .B \-d crawl the given URL with the given depth (the default is 1)
 .TP
+.B \-f include filenames with version numbers when gathering results
+.TP
 .B \-t specify a timeout per request, in milliseconds (the default is 10000)
 When crawling with a depth > 1, a lower timeout value may yield results faster.
 .TP
@@ -66,7 +68,7 @@ Aims to make it easy to find out if a project has released a new version.
 Only unknown bugs so far. Bugs can be reported at
 https://github.com/xyproto/getver/issues.
 .SH VERSION
-0.33
+0.34
 .SH AUTHOR
 .B
 getver was written by Alexander F Rødseth <rodseth@gmail.com>

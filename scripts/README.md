@@ -10,7 +10,7 @@ Included scripts
 ----------------
 
 * **bumpver** for updating the pkgver of the PKGBUILD in the same directory (or the file given as the first argument)
-* **bup** for updating the pkgver and hash sums automatically. (Hash sums should ideally be provided by upstream).
+* **vup** for updating the pkgver and hash sums automatically. (Hash sums should ideally be provided by upstream).
 * **geturlver** for retrieving the latest version for a PKGBUILD.
 * **bumprel** uses `setconf` to increase the pkgrel number with 1.
 
