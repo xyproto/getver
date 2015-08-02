@@ -17,7 +17,7 @@ filename=$(basename "$filename")
 bumpver "$filename"
 
 # Download the files
-makepkg -g "$filename" 2>/dev/null
+makepkg -g "$filename" > /dev/null 2>&1
 
 # Get the new hash sum
 key=$(makepkg -g "$filename" 2>/dev/null | head -1 | cut -d"=" -f1)
