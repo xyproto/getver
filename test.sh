@@ -1,6 +1,6 @@
 #!/bin/bash
 echo -n 'Go: '
-./getver golang.org
+./getver golang.org/project
 echo -n 'Python 2: '
 ./getver -u 2 python.org
 echo -n 'Python 3: '
