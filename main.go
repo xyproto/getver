@@ -224,6 +224,7 @@ func CrawlDomain(url string, depth int, examineFunc func(string, string, int)) {
 // Find a list of likely version numbers, given an URL and a maximum number of results
 // TODO: This function needs quite a bit of refactoring
 func VersionNumbers(url string, maxResults, crawlDepth int) []string {
+
 	// Mutex for storing words while crawling with several gorutines
 	wordMut := new(sync.Mutex)
 
@@ -562,7 +563,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 	resultCounter := 0
 OUT:
 	for i := maxdots; i >= 0; i-- { // Sort by number of "." in the version number
-		for i2 := 0; i2 < maxindex; i2++ { // Sort by word placement on the page
+		for i2 := 0; i2 <= maxindex; i2++ { // Sort by word placement on the page
 			for d := maxdepth; d >= 0; d-- { // Sort by crawl depth, highest number first (most shallow)
 				for _, charIndex := range charIndexList { // Sort by page character index as well
 					for word, depth := range wordMapDepth { // Loop through the gathered words
