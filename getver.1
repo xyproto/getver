@@ -1,6 +1,6 @@
 .\"             -*-Nroff-*-
 .\"
-.TH "getver" 1 "27 Apr 2015" "" ""
+.TH "getver" 1 "21 Oct 2015" "" ""
 .SH NAME
 getver \- crawls a given URL and tries to find the version number
 .SH SYNOPSIS
@@ -31,7 +31,7 @@ Returns the second result from python.org, which is the version number for
 Python 2.
 .sp
 .B getver -d 2 -u 1 --sort grails.org
-Crawls grails.org with a depth of 2, sorts the results in descending order and
+Crawls grails.org with a depth of 2, sorts the results by page placement and
 returns the first result.  Sorting may be necessary when crawling with a
 depth > 1, to retrieve the version number from the same version number placement.
 .PP
@@ -50,10 +50,6 @@ When crawling with a depth > 1, a lower timeout value may yield results faster.
 .B \-\-nostrip don't strip away letters from potential version numbers, but
 keep them as part of the result.
 .TP
-.B \-\-sort sort the results, indescending order. The default sort is usually
-more suitable, but not stable.  This sort is stable, but the result you want
-may appear much longer down on the list of results.
-.TP
 .B \-\-help displays brief usage information
 .TP
 .B \-\-version application name and version
@@ -61,12 +57,12 @@ may appear much longer down on the list of results.
 .PP
 .SH "WHY"
 .sp
-Aims to make it easy to find out if a project has released a new version.
+To make it easy to find out if a project has released a new version.
 .SH BUGS
 Only unknown bugs so far. Bugs can be reported at
 https://github.com/xyproto/getver/issues.
 .SH VERSION
-0.33
+0.4
 .SH AUTHOR
 .B
 getver was written by Alexander F Rødseth <rodseth@gmail.com>

@@ -17,4 +17,4 @@ filename=$(basename "$filename")
 newver=$(geturlver "$filename" | sed 's/-/_/g')
 
 # Update the pkgver
-[ ! -z $newver ] && setconf "$filename" 'pkgver' "$newver"
+[ ! -z $newver ] && (echo "$newver"; setconf "$filename" 'pkgver' "$newver"; setconf "$filename" 'pkgrel' '1')

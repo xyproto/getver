@@ -19,7 +19,7 @@ import (
 
 const (
 	maxCollectedWords = 2048
-	version_string    = "getver 0.33"
+	versionString     = "getver 0.4"
 
 	ALLOWED = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -223,7 +223,7 @@ func CrawlDomain(url string, depth int, examineFunc func(string, string, int)) {
 
 // Find a list of likely version numbers, given an URL and a maximum number of results
 // TODO: This function needs quite a bit of refactoring
-func VersionNumbers(url string, maxResults, crawlDepth int) []string {
+func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames bool) []string {
 
 	// Mutex for storing words while crawling with several gorutines
 	wordMut := new(sync.Mutex)
@@ -332,7 +332,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 					}
 				}
 				// If the word is at least 4 letters long, check if it could be a filename
-				if ok && (len(word) >= 4) {
+				if ok && !includeFilenames && (len(word) >= 4) {
 					// If the last letter is not a digit
 					if !strings.Contains(DIGITS, string(word[len(word)-1])) {
 						// If the '.' leaves three or two letters at the end
@@ -535,7 +535,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int) []string {
 	count := 0
 	maxindex := 0
 	index := 0
-	for word, _ := range wordMapDepth {
+	for word := range wordMapDepth {
 		// Find the maximum dotcount
 		count = strings.Count(word, ".")
 		if count > maxdots {
@@ -590,7 +590,7 @@ func main() {
 	// Help text
 	flag.Usage = func() {
 		fmt.Println()
-		fmt.Println(version_string)
+		fmt.Println(versionString)
 		fmt.Println()
 		fmt.Println("Crawls a given URL and tries to find the version number.")
 		fmt.Println()
@@ -602,7 +602,6 @@ func main() {
 		fmt.Println("    -d=N         Crawl depth (the default is 1)")
 		fmt.Println("    -t=N         Timeout per request, in milliseconds (the default is 10000)")
 		fmt.Println("    --nostrip    Don't strip away letters")
-		fmt.Println("    --sort       Sort the results in descending order")
 		fmt.Println("    --number     Number the results")
 		fmt.Println("    --version    Application name and version")
 		fmt.Println("    --help       Brief usage information")
@@ -618,6 +617,7 @@ func main() {
 	nostripped := flag.Bool("nostrip", false, "Strip away letters, keep digits")
 	numbered := flag.Bool("number", false, "Number the results")
 	version := flag.Bool("version", false, "Show application name and version")
+	includeFilenames := flag.Bool("f", false, "Include filenames when crawling")
 
 	flag.Parse()
 
@@ -628,7 +628,7 @@ func main() {
 	}
 
 	if *version {
-		fmt.Println(version_string)
+		fmt.Println(versionString)
 		os.Exit(0)
 	}
 
@@ -658,7 +658,7 @@ func main() {
 
 	// Retrieve the results
 
-	foundVersionNumbers := VersionNumbers(url, *retrieve, *crawlDepth)
+	foundVersionNumbers := VersionNumbers(url, *retrieve, *crawlDepth, *includeFilenames)
 	if *sortResults {
 		sort.Strings(foundVersionNumbers)
 		var reversed []string
