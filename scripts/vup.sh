@@ -16,15 +16,5 @@ filename=$(basename "$filename")
 # Update the pkgver
 bumpver "$filename"
 
-# Download the files
-makepkg -g "$filename" > /dev/null 2>&1
-
-# Get the new hash sum
-key=$(makepkg -g "$filename" 2>/dev/null | head -1 | cut -d"=" -f1)
-value=$(makepkg -g "$filename" 2>/dev/null | cut -d"=" -f2)
-
-# Update the hash sum
-if [[ $key ]] && [[ $value ]]; then
-  setconf "$filename" "$key" "$value" ')'
-fi
-
+# Update the hash sums
+updpkgsums "$filename"
