@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"regexp"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -19,7 +18,7 @@ import (
 
 const (
 	maxCollectedWords = 2048
-	versionString     = "getver 0.33"
+	versionString     = "getver 0.4"
 
 	ALLOWED = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -584,9 +583,6 @@ OUT:
 }
 
 func main() {
-	// Use all cores
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	// Help text
 	flag.Usage = func() {
 		fmt.Println()
