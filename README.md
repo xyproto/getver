@@ -10,7 +10,7 @@ Gotchas
 General information
 -------------------
 
-* Current version: 0.4
+* Current version: 0.5
 * Author: Alexander F Rødseth <xyproto@archlinux.org>
 * License: MIT
 

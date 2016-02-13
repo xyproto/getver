@@ -13,8 +13,14 @@ fi
 cd $(dirname "$filename")
 filename=$(basename "$filename")
 
+# Get the old version
+oldver=$(grep 'pkgver=' "$filename" | cut -d'=' -f2)
+
 # Get the new version, but replace "-" with "_"
 newver=$(geturlver "$filename" | sed 's/-/_/g')
 
-# Update the pkgver
-[ ! -z $newver ] && (echo "$newver"; setconf "$filename" 'pkgver' "$newver"; setconf "$filename" 'pkgrel' '1')
+# Check if there is a new version
+if [[ $newver != $oldver ]]; then
+  # Update the pkgver
+  [ ! -z $newver ] && (echo "$newver"; setconf "$filename" 'pkgver' "$newver"; setconf "$filename" 'pkgrel' '1')
+fi
