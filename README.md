@@ -5,7 +5,7 @@ Small utility for guessing the current version of a project, for a given URL.
 General information
 -------------------
 
-* Current version: 0.5
+* Current version: 0.52
 * Author: Alexander F Rødseth <xyproto@archlinux.org>
 * License: MIT
 
