@@ -20,10 +20,10 @@ cd $(dirname "$filename")
 filename=$(basename "$filename")
 
 # Use extra parameters, if specified
-params=$(grep -a '^# getver:' $filename | sed -n -e 's/^.*getver: //p')
+params=$(grep -a '^# getver:' $filename | head -1 | sed -n -e 's/^.*getver: //p')
 
 # Retrieve the URL from the file
-url=$(grep url= "$filename" | cut -d\" -f2 | cut -d"'" -f2)
+url=$(grep url= "$filename" | head -1 | cut -d\" -f2 | cut -d"'" -f2)
 
 # Output the command
 if [[ $verbose == T ]]; then

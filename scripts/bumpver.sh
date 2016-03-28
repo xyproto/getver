@@ -14,7 +14,7 @@ cd $(dirname "$filename")
 filename=$(basename "$filename")
 
 # Get the old version
-oldver=$(grep 'pkgver=' "$filename" | cut -d'=' -f2)
+oldver=$(grep 'pkgver=' "$filename" | head -1 | cut -d'=' -f2)
 
 # Get the new version, but replace "-" with "_"
 newver=$(geturlver "$filename" | sed 's/-/_/g')
