@@ -19,6 +19,12 @@ oldver=$(grep 'pkgver=' "$filename" | head -1 | cut -d'=' -f2)
 # Get the new version, but replace "-" with "_"
 newver=$(geturlver "$filename" | sed 's/-/_/g')
 
+# Check if there are enough version results
+if [[ $newver == Not* ]]; then
+  echo "$newver"
+  exit 1
+fi
+
 # Check if there is a new version
 if [[ $newver != $oldver ]]; then
   # Update the pkgver
