@@ -6,6 +6,5 @@ General information
 -------------------
 
 * Current version: 0.52
-* Author: Alexander F Rødseth <xyproto@archlinux.org>
+* Author: Alexander F Rødseth &lt;xyproto@archlinux.org&gt;
 * License: MIT
-
