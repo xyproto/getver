@@ -1,4 +1,3 @@
-// Tries to fetch likely version numbers, given an URL
 package main
 
 import (
@@ -20,24 +19,20 @@ import (
 const (
 	maxCollectedWords = 2048
 	versionString     = "getver 0.52"
-
-	ALLOWED = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	UPPER   = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	DIGITS  = "0123456789"
-	SPECIAL = ".-+_"
-
-	lookInsideTags = false
+	allowed           = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	letters           = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	upper             = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	digits            = "0123456789"
+	special           = ".-+_"
+	lookInsideTags    = false
 )
 
 var (
-	examinedLinks []string
-	examinedMutex *sync.Mutex
-
-	clientTimeout  time.Duration
-	noStripLetters = false
-
-	defaultProtocol = "http" // If the protocol is missing
+	examinedLinks   []string
+	examinedMutex   *sync.Mutex
+	clientTimeout   time.Duration
+	noStripLetters  = false
+	defaultProtocol = "https" // If the protocol is missing
 )
 
 func linkIsPage(url string) bool {
@@ -105,11 +100,7 @@ func getLinks(data string) []string {
 
 	// Then add the absolute links
 	re1 := regexp.MustCompile(`(http|ftp|https):\/\/([\w\-_]+(?:(?:\.[\w\-_]+)+))([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?`)
-	for _, link := range re1.FindAllString(data, -1) {
-		foundLinks = append(foundLinks, link)
-	}
-
-	return foundLinks
+	return append(foundLinks, re1.FindAllString(data, -1)...)
 }
 
 // Extract likely subpages
@@ -123,7 +114,7 @@ func getSubPages(data string) []string {
 	return subpages
 }
 
-// Convert from a host (a.b.c.d.com) to a domain (d.com) or subdomain (c.d.com)
+// ToDomain can convert from a host (a.b.c.d.com) to a domain (d.com) or subdomain (c.d.com)
 func ToDomain(host string, ignoreSubdomain bool) string {
 	if strings.Count(host, ".") > 1 {
 		parts := strings.Split(host, ".")
@@ -131,7 +122,7 @@ func ToDomain(host string, ignoreSubdomain bool) string {
 		if ignoreSubdomain {
 			numparts = 2
 		}
-		return strings.Join(parts[len(parts)-numparts:len(parts)], ".")
+		return strings.Join(parts[len(parts)-numparts:], ".")
 	}
 	return host
 }
@@ -206,7 +197,7 @@ func crawl(target string, ignoreSubdomain bool, depth int, wg *sync.WaitGroup, e
 	}
 }
 
-// Crawl an URL up to a given depth. Runs the examine function on every page.
+// CrawlDomain can crawl an URL up to a given depth. Runs the examine function on every page.
 // Does not examine the same URL twice. Uses several goroutines.
 func CrawlDomain(url string, depth int, examineFunc func(string, string, int)) {
 	// Set up a mutex and slice to keep track of pages that has already been crawled
@@ -221,7 +212,8 @@ func CrawlDomain(url string, depth int, examineFunc func(string, string, int)) {
 	wg.Wait()
 }
 
-// Find a list of likely version numbers, given an URL and a maximum number of results
+// VersionNumbers can find a list of likely version numbers, given an URL and a
+// maximum number of results.
 // TODO: This function needs quite a bit of refactoring
 func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames bool) []string {
 
@@ -246,9 +238,9 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 				intag = true
 			} else if intag && (x == '>') {
 				intag = false
-			} else if (!intag || lookInsideTags) && strings.Contains(ALLOWED, string(x)) {
+			} else if (!intag || lookInsideTags) && strings.Contains(allowed, string(x)) {
 				word += string(x)
-			} else if (!intag || lookInsideTags) && !strings.Contains(ALLOWED, string(x)) {
+			} else if (!intag || lookInsideTags) && !strings.Contains(allowed, string(x)) {
 				ok := true
 				// Check if the word is empty
 				if word == "" {
@@ -268,7 +260,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 					capCount := 0
 					// Count up to 2 capital letters
 					for _, letter := range word {
-						if strings.Contains(UPPER, string(letter)) {
+						if strings.Contains(upper, string(letter)) {
 							capCount++
 							if capCount > 1 {
 								break
@@ -294,7 +286,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 				// Check if the word has at least one digit
 				if ok {
 					found := false
-					for _, digit := range DIGITS {
+					for _, digit := range digits {
 						if strings.Contains(word, string(digit)) {
 							found = true
 							break
@@ -323,7 +315,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 				}
 				// Check if the word has two special characters in a row
 				if ok {
-					for _, special := range SPECIAL {
+					for _, special := range special {
 						if strings.Contains(word, string(special)+string(special)) {
 							// Not a version number
 							ok = false
@@ -334,7 +326,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 				// If the word is at least 4 letters long, check if it could be a filename
 				if ok && !includeFilenames && (len(word) >= 4) {
 					// If the last letter is not a digit
-					if !strings.Contains(DIGITS, string(word[len(word)-1])) {
+					if !strings.Contains(digits, string(word[len(word)-1])) {
 						// If the '.' leaves three or two letters at the end
 						if (word[len(word)-4] == '.') || (word[len(word)-3] == '.') {
 							// It's probably a filename
@@ -343,14 +335,14 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 					}
 				}
 				// If the word starts with a special character, skip it
-				if ok && strings.Contains(SPECIAL, string(word[0])) {
+				if ok && strings.Contains(special, string(word[0])) {
 					ok = false
 				}
 				// If the word is digits and two dashes, assume it's a date
 				if ok && (strings.Count(word, "-") == 2) {
 					onlyDateLetters := true
 					for _, letter := range word {
-						if !strings.Contains(DIGITS+"-", string(letter)) {
+						if !strings.Contains(digits+"-", string(letter)) {
 							onlyDateLetters = false
 							break
 						}
@@ -368,7 +360,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 					if (len(left) <= 2) && (len(right) <= 2) {
 						onlyDigits := true
 						for _, letter := range left {
-							if !strings.Contains(DIGITS, string(letter)) {
+							if !strings.Contains(digits, string(letter)) {
 								// Not a digit
 								onlyDigits = false
 								break
@@ -376,7 +368,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 						}
 						if onlyDigits {
 							for _, letter := range right {
-								if !strings.Contains(DIGITS, string(letter)) {
+								if !strings.Contains(digits, string(letter)) {
 									// Not a digit
 									onlyDigits = false
 									break
@@ -395,15 +387,12 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 				if ok && !noStripLetters && !(strings.Contains(word, "alpha") || strings.Contains(word, "beta")) {
 					newWord := ""
 					for _, letter := range word {
-						if strings.Contains(DIGITS+SPECIAL, string(letter)) {
+						if strings.Contains(digits+special, string(letter)) {
 							newWord += string(letter)
 						}
 					}
 					// If the new word starts with a ".", strip it
-					if strings.HasPrefix(newWord, ".") {
-						newWord = newWord[1:]
-					}
-					word = newWord
+					word = strings.TrimPrefix(newWord, ".")
 				}
 
 				// If there are only letters in front of the first dot, skip it
@@ -411,7 +400,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 					parts := strings.Split(word, ".")
 					foundNonLetter := false
 					for _, letter := range parts[0] {
-						if !strings.Contains(LETTERS, string(letter)) {
+						if !strings.Contains(letters, string(letter)) {
 							foundNonLetter = true
 						}
 					}
@@ -426,7 +415,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 					streakCount := 0
 					maxStreak := 0
 					for _, letter := range word {
-						if strings.Contains(DIGITS, string(letter)) {
+						if strings.Contains(digits, string(letter)) {
 							streakCount++
 						} else {
 							// Set maxStreak and reset the streakCount
@@ -446,7 +435,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 				// If the word has no special characters and starts with "0", it's not a version number
 				if ok {
 					hasSpecial := false
-					for _, special := range SPECIAL {
+					for _, special := range special {
 						if strings.Contains(word, string(special)) {
 							hasSpecial = true
 							break
@@ -461,7 +450,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 					// Find the first digit
 					pos := -1
 					for i, letter := range word {
-						if strings.Contains(DIGITS, string(letter)) {
+						if strings.Contains(digits, string(letter)) {
 							pos = i
 							break
 						}
@@ -469,7 +458,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 					if pos > 0 {
 						// Check if the preceeding letter contains no special letters
 						preceeding := word[:pos]
-						if (len(preceeding) == 1) && !strings.Contains(LETTERS, string(preceeding[0])) {
+						if (len(preceeding) == 1) && !strings.Contains(letters, string(preceeding[0])) {
 							ok = false
 						}
 					}
@@ -523,7 +512,7 @@ func VersionNumbers(url string, maxResults, crawlDepth int, includeFilenames boo
 					}
 				}
 				word = ""
-				if strings.Contains(ALLOWED, string(x)) {
+				if strings.Contains(allowed, string(x)) {
 					word = string(x)
 				}
 			}
