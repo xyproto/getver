@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"regexp"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -17,8 +16,8 @@ import (
 )
 
 const (
-	maxCollectedWords = 2048
-	versionString     = "getver 0.6.0"
+	versionString     = "getver 0.6.1"
+	maxCollectedWords = 8192
 	allowed           = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	letters           = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	upper             = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -31,7 +30,7 @@ var (
 	examinedLinks   []string
 	examinedMutex   *sync.Mutex
 	clientTimeout   time.Duration
-	noStripLetters  = false
+	noStripLetters  bool
 	defaultProtocol = "https" // If the protocol is missing
 )
 
@@ -573,9 +572,6 @@ OUT:
 }
 
 func main() {
-	// Use all cores
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	// Help text
 	flag.Usage = func() {
 		fmt.Println()
