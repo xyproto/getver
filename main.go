@@ -18,7 +18,7 @@ import (
 
 const (
 	maxCollectedWords = 2048
-	versionString     = "getver 0.52"
+	versionString     = "getver 0.6.0"
 	allowed           = "0123456789.-+_ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	letters           = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	upper             = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
